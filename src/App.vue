@@ -13,6 +13,73 @@ const clock = () => `${String(Math.floor(snapshot.value.hour)).padStart(2, "0")}
 
 let app: Application | undefined;
 let stage: Container | undefined;
+const cameraZoom = ref(1);
+const pointers = new Map<number, { x: number; y: number }>();
+let lastPinchDistance = 0;
+
+function clampCamera() {
+  if (!stage) return;
+  stage.x = Math.min(0, Math.max(840 - 840 * cameraZoom.value, stage.x));
+  stage.y = Math.min(0, Math.max(430 - 430 * cameraZoom.value, stage.y));
+}
+
+function applyZoom(nextZoom: number, clientX?: number, clientY?: number) {
+  if (!stage || !app) return;
+  const rect = app.canvas.getBoundingClientRect();
+  const focusX = clientX === undefined ? 420 : (clientX - rect.left) * 840 / rect.width;
+  const focusY = clientY === undefined ? 215 : (clientY - rect.top) * 430 / rect.height;
+  const worldX = (focusX - stage.x) / cameraZoom.value;
+  const worldY = (focusY - stage.y) / cameraZoom.value;
+  cameraZoom.value = Math.min(3.5, Math.max(1, nextZoom));
+  stage.scale.set(cameraZoom.value);
+  stage.position.set(focusX - worldX * cameraZoom.value, focusY - worldY * cameraZoom.value);
+  clampCamera();
+}
+
+function resetCamera() {
+  cameraZoom.value = 1;
+  stage?.scale.set(1);
+  stage?.position.set(0, 0);
+}
+
+function onPointerDown(event: PointerEvent) {
+  app?.canvas.setPointerCapture(event.pointerId);
+  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+}
+
+function onPointerMove(event: PointerEvent) {
+  const previous = pointers.get(event.pointerId);
+  if (!previous || !stage || !app) return;
+  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  const active = [...pointers.values()];
+  if (active.length === 1) {
+    const rect = app.canvas.getBoundingClientRect();
+    stage.x += (event.clientX - previous.x) * 840 / rect.width;
+    stage.y += (event.clientY - previous.y) * 430 / rect.height;
+    clampCamera();
+  } else if (active.length === 2) {
+    const distance = Math.hypot(active[0].x - active[1].x, active[0].y - active[1].y);
+    if (lastPinchDistance > 0) {
+      applyZoom(
+        cameraZoom.value * distance / lastPinchDistance,
+        (active[0].x + active[1].x) / 2,
+        (active[0].y + active[1].y) / 2,
+      );
+    }
+    lastPinchDistance = distance;
+  }
+}
+
+function onPointerUp(event: PointerEvent) {
+  pointers.delete(event.pointerId);
+  lastPinchDistance = 0;
+}
+
+function onWheel(event: WheelEvent) {
+  event.preventDefault();
+  applyZoom(cameraZoom.value * Math.exp(-event.deltaY * 0.0015), event.clientX, event.clientY);
+}
+
 function draw() {
   if (!stage) return;
   stage.removeChildren();
@@ -34,9 +101,24 @@ onMounted(async () => {
   await app.init({ width: 840, height: 430, background: 0x0d1014, antialias: true, resolution: Math.min(window.devicePixelRatio, 2), autoDensity: true });
   canvasHost.value?.appendChild(app.canvas);
   stage = new Container(); app.stage.addChild(stage); draw();
+  app.canvas.addEventListener("pointerdown", onPointerDown);
+  app.canvas.addEventListener("pointermove", onPointerMove);
+  app.canvas.addEventListener("pointerup", onPointerUp);
+  app.canvas.addEventListener("pointercancel", onPointerUp);
+  app.canvas.addEventListener("wheel", onWheel, { passive: false });
 });
 watch(snapshot, draw, { deep: true });
-onBeforeUnmount(() => { worker.terminate(); app?.destroy(true); });
+onBeforeUnmount(() => {
+  worker.terminate();
+  if (app) {
+    app.canvas.removeEventListener("pointerdown", onPointerDown);
+    app.canvas.removeEventListener("pointermove", onPointerMove);
+    app.canvas.removeEventListener("pointerup", onPointerUp);
+    app.canvas.removeEventListener("pointercancel", onPointerUp);
+    app.canvas.removeEventListener("wheel", onWheel);
+    app.destroy(true);
+  }
+});
 </script>
 
 <template>
@@ -51,7 +133,14 @@ onBeforeUnmount(() => { worker.terminate(); app?.destroy(true); });
       <article><span>ON SHIFT</span><strong>{{ snapshot.workers.filter(w => w.shift === 'work').length }}</strong></article>
     </section>
     <section class="mine">
-      <div ref="canvasHost" class="canvas" aria-label="Mine overview"></div>
+      <div class="canvas-shell">
+        <div ref="canvasHost" class="canvas" aria-label="Interactive mine overview. Drag to pan and pinch or scroll to zoom."></div>
+        <div class="camera-controls" aria-label="Map controls">
+          <button aria-label="Zoom out" @click="applyZoom(cameraZoom / 1.35)">−</button>
+          <button class="zoom-level" aria-label="Reset map view" @click="resetCamera">{{ Math.round(cameraZoom * 100) }}%</button>
+          <button aria-label="Zoom in" @click="applyZoom(cameraZoom * 1.35)">+</button>
+        </div>
+      </div>
       <aside>
         <section class="time-panel"><div class="panel-heading"><h2>Time</h2><span>{{ snapshot.speed === 0 ? 'Paused' : `${snapshot.speed}× speed` }}</span></div><div class="controls"><button v-for="speed in ([0, 1, 4] as Speed[])" :key="speed" :class="{ active: snapshot.speed === speed }" @click="setSpeed(speed)">{{ speed === 0 ? 'Pause' : `${speed}×` }}</button></div><button class="reset" @click="send({ type: 'reset' })">Restart colony</button></section>
         <section class="workers-panel"><div class="panel-heading"><h2>Workers</h2><span>{{ snapshot.workers.length }} residents</span></div><ul><li v-for="dwarf in snapshot.workers" :key="dwarf.id"><i :class="dwarf.shift"></i><span>{{ dwarf.name }}</span><small>{{ dwarf.shift === 'work' ? 'mining' : dwarf.destination === 'work' ? 'commuting' : 'off duty' }}</small></li></ul></section>
