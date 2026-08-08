@@ -31,7 +31,7 @@ function draw() {
 
 onMounted(async () => {
   app = new Application();
-  await app.init({ width: 840, height: 430, background: 0x0d1014, antialias: true, resizeTo: canvasHost.value });
+  await app.init({ width: 840, height: 430, background: 0x0d1014, antialias: true, resolution: Math.min(window.devicePixelRatio, 2), autoDensity: true });
   canvasHost.value?.appendChild(app.canvas);
   stage = new Container(); app.stage.addChild(stage); draw();
 });
@@ -41,8 +41,21 @@ onBeforeUnmount(() => { worker.terminate(); app?.destroy(true); });
 
 <template>
   <main>
-    <header><div><span class="eyebrow">DEEPFOLK / SYSTEMS PROTOTYPE</span><h1>Emberdelve</h1></div><div class="clock">Day {{ Math.floor(snapshot.tick / 720) + 1 }} · {{ clock() }}</div></header>
-    <section class="metrics"><article><span>ORE STOCKPILE</span><strong>{{ snapshot.ore.toFixed(1) }}</strong></article><article><span>POPULATION</span><strong>{{ snapshot.workers.length }}</strong></article><article><span>ON SHIFT</span><strong>{{ snapshot.workers.filter(w => w.shift === 'work').length }}</strong></article></section>
-    <section class="mine"><div ref="canvasHost" class="canvas"></div><aside><h2>Time</h2><div class="controls"><button v-for="speed in ([0, 1, 4] as Speed[])" :key="speed" :class="{ active: snapshot.speed === speed }" @click="setSpeed(speed)">{{ speed === 0 ? 'Pause' : `${speed}×` }}</button></div><button class="reset" @click="send({ type: 'reset' })">Restart colony</button><h2>Workers</h2><ul><li v-for="dwarf in snapshot.workers" :key="dwarf.id"><i :class="dwarf.shift"></i><span>{{ dwarf.name }}</span><small>{{ dwarf.shift === 'work' ? 'mining' : dwarf.destination === 'work' ? 'commuting' : 'off duty' }}</small></li></ul></aside></section>
+    <header>
+      <div><span class="eyebrow">DEEPFOLK / SYSTEMS PROTOTYPE</span><h1>Emberdelve</h1></div>
+      <div class="clock"><span>Day {{ Math.floor(snapshot.tick / 720) + 1 }}</span><strong>{{ clock() }}</strong></div>
+    </header>
+    <section class="metrics" aria-label="Colony overview">
+      <article><span>ORE</span><strong>{{ snapshot.ore.toFixed(1) }}</strong></article>
+      <article><span>FOLK</span><strong>{{ snapshot.workers.length }}</strong></article>
+      <article><span>ON SHIFT</span><strong>{{ snapshot.workers.filter(w => w.shift === 'work').length }}</strong></article>
+    </section>
+    <section class="mine">
+      <div ref="canvasHost" class="canvas" aria-label="Mine overview"></div>
+      <aside>
+        <section class="time-panel"><div class="panel-heading"><h2>Time</h2><span>{{ snapshot.speed === 0 ? 'Paused' : `${snapshot.speed}× speed` }}</span></div><div class="controls"><button v-for="speed in ([0, 1, 4] as Speed[])" :key="speed" :class="{ active: snapshot.speed === speed }" @click="setSpeed(speed)">{{ speed === 0 ? 'Pause' : `${speed}×` }}</button></div><button class="reset" @click="send({ type: 'reset' })">Restart colony</button></section>
+        <section class="workers-panel"><div class="panel-heading"><h2>Workers</h2><span>{{ snapshot.workers.length }} residents</span></div><ul><li v-for="dwarf in snapshot.workers" :key="dwarf.id"><i :class="dwarf.shift"></i><span>{{ dwarf.name }}</span><small>{{ dwarf.shift === 'work' ? 'mining' : dwarf.destination === 'work' ? 'commuting' : 'off duty' }}</small></li></ul></section>
+      </aside>
+    </section>
   </main>
 </template>
