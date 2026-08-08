@@ -19,8 +19,21 @@ let lastPinchDistance = 0;
 
 function clampCamera() {
   if (!stage) return;
-  stage.x = Math.min(0, Math.max(840 - 840 * cameraZoom.value, stage.x));
-  stage.y = Math.min(0, Math.max(430 - 430 * cameraZoom.value, stage.y));
+  const viewportWidth = 840;
+  const viewportHeight = 430;
+  const scaledWidth = viewportWidth * cameraZoom.value;
+  const scaledHeight = viewportHeight * cameraZoom.value;
+  const panMarginX = viewportWidth * 0.35;
+  const panMarginY = viewportHeight * 0.35;
+
+  stage.x = Math.min(
+    panMarginX,
+    Math.max(viewportWidth - scaledWidth - panMarginX, stage.x),
+  );
+  stage.y = Math.min(
+    panMarginY,
+    Math.max(viewportHeight - scaledHeight - panMarginY, stage.y),
+  );
 }
 
 function applyZoom(nextZoom: number, clientX?: number, clientY?: number) {
