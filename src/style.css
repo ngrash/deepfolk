@@ -15,7 +15,7 @@ article strong { font-size: 24px; font-weight: 500; font-variant-numeric: tabula
 .canvas-shell { position: relative; min-width: 0; align-self: start; overflow: hidden; background: #0d1014; }
 .canvas { min-width: 0; overflow: hidden; cursor: grab; touch-action: none; user-select: none; }
 .canvas:active { cursor: grabbing; }
-canvas { display: block; width: 100%; height: auto; aspect-ratio: 840 / 430; }
+.canvas canvas { display: block; width: 100% !important; height: auto !important; aspect-ratio: 840 / 430; }
 .camera-controls { position: absolute; right: 10px; bottom: 10px; display: grid; grid-template-columns: 42px 62px 42px; gap: 4px; padding: 4px; border: 1px solid #343b43; border-radius: 7px; background: rgb(13 16 20 / 88%); backdrop-filter: blur(8px); }
 .camera-controls button { min-height: 40px; padding: 6px; border: 0; background: #1a1f25; font-size: 20px; }
 .camera-controls .zoom-level { color: #aeb7c0; font-size: 11px; font-variant-numeric: tabular-nums; }
